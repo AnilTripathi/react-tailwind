@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import type { RootState } from '@/store'
-import type { Todo, UpdateTodoPayload } from '@/types/user'
+import type { Todo, UpdateTodoPayload } from '@/types/todo'
 
 // Define a type for the slice state
 interface TodoState {

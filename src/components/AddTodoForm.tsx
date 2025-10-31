@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { addTodo } from '@/services/mytodo';
-import type { Todo } from '@/types/user';
+import { addTodo } from '@/service/mytodo';
+import type { Todo } from '@/types/todo';
 
 const initialForm: Omit<Todo, 'id'> = {
   title: '',
@@ -14,7 +13,6 @@ const initialForm: Omit<Todo, 'id'> = {
   completedDate: undefined,
 };
 
-
 interface AddTodoFormProps {
   initialData?: Partial<Todo>;
   onSubmit?: (todo: Todo) => void;
@@ -22,8 +20,15 @@ interface AddTodoFormProps {
   isEdit?: boolean;
 }
 
-const AddTodoForm: React.FC<AddTodoFormProps> = ({ initialData, onSubmit, onCancel, isEdit }) => {
-  const [form, setForm] = useState<Omit<Todo, 'id'> & { id?: number }>(initialForm);
+const AddTodoForm: React.FC<AddTodoFormProps> = ({
+  initialData,
+  onSubmit,
+  onCancel,
+  isEdit,
+}) => {
+  const [form, setForm] = useState<Omit<Todo, 'id'> & { id?: number }>(
+    initialForm
+  );
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -32,11 +37,16 @@ const AddTodoForm: React.FC<AddTodoFormProps> = ({ initialData, onSubmit, onCanc
     }
   }, [initialData]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
     const { name, value, type } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+      [name]:
+        type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
@@ -57,8 +67,13 @@ const AddTodoForm: React.FC<AddTodoFormProps> = ({ initialData, onSubmit, onCanc
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md space-y-4">
-      <h2 className="text-2xl font-bold mb-2">{isEdit ? 'Edit Todo' : 'Add New Todo'}</h2>
+    <form
+      onSubmit={handleSubmit}
+      className="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md space-y-4"
+    >
+      <h2 className="text-2xl font-bold mb-2">
+        {isEdit ? 'Edit Todo' : 'Add New Todo'}
+      </h2>
       <div>
         <label className="block font-medium mb-1">Title</label>
         <input

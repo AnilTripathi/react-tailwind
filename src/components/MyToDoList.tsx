@@ -1,9 +1,12 @@
-
-
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
-import { selectTotoList, deleteTodo, toggleTodo, updateToto } from '@/services/mytodo';
+import {
+  selectTotoList,
+  deleteTodo,
+  toggleTodo,
+  updateToto,
+} from '@/service/mytodo';
 import { useState, useRef, useEffect } from 'react';
-import type { Todo } from '@/types/user';
+import type { Todo } from '@/types/todo';
 import AddTodoForm from './AddTodoForm';
 import Slider from './Slider';
 
@@ -37,11 +40,15 @@ const MyToDoList = () => {
   }, [menuOpenId]);
 
   const handleToggle = (todo: Todo) => {
-    dispatch(toggleTodo({
-      id: todo.id,
-      completed: !todo.completed,
-      completedDate: !todo.completed ? new Date().toISOString().slice(0, 10) : '',
-    }));
+    dispatch(
+      toggleTodo({
+        id: todo.id,
+        completed: !todo.completed,
+        completedDate: !todo.completed
+          ? new Date().toISOString().slice(0, 10)
+          : '',
+      })
+    );
     setMenuOpenId(null);
   };
 
@@ -67,7 +74,9 @@ const MyToDoList = () => {
   return (
     <div className="space-y-6">
       {todoList.length === 0 ? (
-        <div className="text-center text-gray-400 py-12 text-lg">No todos yet. Add your first todo!</div>
+        <div className="text-center text-gray-400 py-12 text-lg">
+          No todos yet. Add your first todo!
+        </div>
       ) : (
         <ul className="space-y-4">
           {todoList.map((todo) => (
@@ -82,36 +91,84 @@ const MyToDoList = () => {
                   <button
                     onClick={() => handleToggle(todo)}
                     className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors focus:outline-none ${
-                      todo.completed ? 'border-green-500 bg-green-500' : 'border-gray-300 bg-white'
+                      todo.completed
+                        ? 'border-green-500 bg-green-500'
+                        : 'border-gray-300 bg-white'
                     }`}
-                    title={todo.completed ? 'Mark as uncomplete' : 'Mark as complete'}
+                    title={
+                      todo.completed ? 'Mark as uncomplete' : 'Mark as complete'
+                    }
                   >
                     {todo.completed && (
-                      <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      <svg
+                        className="h-3 w-3 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                     )}
                   </button>
-                  <span className={`font-semibold text-lg ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>{todo.title}</span>
-                  <span className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${priorityColors[todo.priority]}`}>{todo.priority}</span>
+                  <span
+                    className={`font-semibold text-lg ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}
+                  >
+                    {todo.title}
+                  </span>
+                  <span
+                    className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${priorityColors[todo.priority]}`}
+                  >
+                    {todo.priority}
+                  </span>
                 </div>
-                <div className={`text-gray-600 mb-2 ${todo.completed ? 'line-through' : ''}`}>{todo.description}</div>
+                <div
+                  className={`text-gray-600 mb-2 ${todo.completed ? 'line-through' : ''}`}
+                >
+                  {todo.description}
+                </div>
                 <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                  <span>Assigned: <span className="font-medium text-gray-700">{todo.assignDate}</span></span>
-                  <span>Due: <span className="font-medium text-gray-700">{todo.dueDate}</span></span>
+                  <span>
+                    Assigned:{' '}
+                    <span className="font-medium text-gray-700">
+                      {todo.assignDate}
+                    </span>
+                  </span>
+                  <span>
+                    Due:{' '}
+                    <span className="font-medium text-gray-700">
+                      {todo.dueDate}
+                    </span>
+                  </span>
                   {todo.completed && todo.completedDate && (
-                    <span>Completed: <span className="font-medium text-green-600">{todo.completedDate}</span></span>
+                    <span>
+                      Completed:{' '}
+                      <span className="font-medium text-green-600">
+                        {todo.completedDate}
+                      </span>
+                    </span>
                   )}
                 </div>
               </div>
               <div className="relative md:ml-4 md:items-end flex items-center">
                 <button
-                  onClick={() => setMenuOpenId(menuOpenId === todo.id ? null : todo.id)}
+                  onClick={() =>
+                    setMenuOpenId(menuOpenId === todo.id ? null : todo.id)
+                  }
                   className="p-2 rounded-full hover:bg-gray-100 focus:outline-none"
                   title="More Actions"
                   aria-label="More Actions"
                 >
-                  <svg className="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg
+                    className="h-6 w-6 text-gray-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
                     <circle cx="12" cy="5" r="1.5" />
                     <circle cx="12" cy="12" r="1.5" />
                     <circle cx="12" cy="19" r="1.5" />
@@ -130,8 +187,18 @@ const MyToDoList = () => {
                       onClick={() => handleEdit(todo)}
                       className="flex items-center w-full gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors font-medium"
                     >
-                      <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6-6 3 3-6 6H9v-3z" />
+                      <svg
+                        className="h-5 w-5 text-blue-500"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M15.232 5.232l3.536 3.536M9 13l6-6 3 3-6 6H9v-3z"
+                        />
                       </svg>
                       Edit
                     </button>
@@ -139,8 +206,18 @@ const MyToDoList = () => {
                       onClick={() => handleDelete(todo.id)}
                       className="flex items-center w-full gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors font-medium"
                     >
-                      <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      <svg
+                        className="h-5 w-5 text-red-500"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                       Delete
                     </button>
@@ -150,15 +227,35 @@ const MyToDoList = () => {
                     >
                       {todo.completed ? (
                         <>
-                          <svg className="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          <svg
+                            className="h-5 w-5 text-gray-500"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                           Mark as Uncomplete
                         </>
                       ) : (
                         <>
-                          <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          <svg
+                            className="h-5 w-5 text-green-500"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                           Mark as Complete
                         </>
@@ -170,18 +267,26 @@ const MyToDoList = () => {
               {/* Edit slider using AddTodoForm */}
               <Slider
                 open={editId === todo.id}
-                onClose={() => { setEditId(null); setEditTodo(null); }}
+                onClose={() => {
+                  setEditId(null);
+                  setEditTodo(null);
+                }}
                 title="Edit Todo"
               >
                 <AddTodoForm
                   initialData={editTodo || todo}
-                  onSubmit={(updated) => { handleUpdate(updated); }}
-                  onCancel={() => { setEditId(null); setEditTodo(null); }}
+                  onSubmit={(updated) => {
+                    handleUpdate(updated);
+                  }}
+                  onCancel={() => {
+                    setEditId(null);
+                    setEditTodo(null);
+                  }}
                   isEdit
                 />
               </Slider>
-      {/* Add animation for dropdown */}
-      <style>{`
+              {/* Add animation for dropdown */}
+              <style>{`
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(-10px); }
           to { opacity: 1; transform: translateY(0); }
