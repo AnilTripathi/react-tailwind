@@ -27,6 +27,14 @@ export interface CreateTaskRequest {
   estimateMinutes: number;
 }
 
+export interface EditTaskRequest {
+  title: string;
+  descriptionMd: string;
+  priorityId: string;
+  dueAt: string;
+  estimateMinutes: number;
+}
+
 export interface Page<T> {
   content: T[];
   totalElements: number;

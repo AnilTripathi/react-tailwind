@@ -1,22 +1,21 @@
 /**
- * Create Task Form Component
+ * Edit Task Form Component
  * 
  * Validation rules:
- * - title: required, non-empty after trim
+ * - title: required, non-empty after trim, max 200 chars
  * - priorityId: must be one of ["1","2","3","4","5"] 
- * - dueAt: valid ISO datetime, today or future
+ * - dueAt: valid ISO datetime, recommended today or future
  * - estimateMinutes: integer >= 0
  * - descriptionMd: optional, max 10k chars
- * 
- * Cache behavior: On success, invalidates UserTask cache to refresh task list
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { useCreateUserTaskMutation } from '../service/user';
-import type { CreateTaskRequest } from '../types/userTask';
+import { useEditUserTaskMutation } from '../service/user';
+import type { EditTaskRequest, TaskItem } from '../types/userTask';
 
-interface CreateTaskFormProps {
+interface EditTaskFormProps {
+  task: TaskItem;
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -38,15 +37,15 @@ const PRIORITY_OPTIONS = [
   { value: '5', label: 'Urgent' },
 ];
 
-export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => {
-  const [createTask, { isLoading }] = useCreateUserTaskMutation();
+export const EditTaskForm = ({ task, onSuccess, onCancel }: EditTaskFormProps) => {
+  const [editTask, { isLoading }] = useEditUserTaskMutation();
   
   const [formData, setFormData] = useState({
-    title: '',
-    descriptionMd: '',
-    priorityId: '2', // Default to Medium
-    dueAt: '',
-    estimateMinutes: 60,
+    title: task.title,
+    descriptionMd: task.descriptionMd,
+    priorityId: task.priorityId.toString(),
+    dueAt: task.dueAt.slice(0, 16), // Convert ISO to datetime-local format
+    estimateMinutes: task.estimateMinutes,
   });
   
   const [errors, setErrors] = useState<FormErrors>({});
@@ -57,6 +56,8 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
     // Title validation
     if (!formData.title.trim()) {
       newErrors.title = 'Title is required';
+    } else if (formData.title.trim().length > 200) {
+      newErrors.title = 'Title must be less than 200 characters';
     }
     
     // Priority validation
@@ -69,13 +70,8 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
       newErrors.dueAt = 'Due date is required';
     } else {
       const dueDate = new Date(formData.dueAt);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
       if (isNaN(dueDate.getTime())) {
         newErrors.dueAt = 'Invalid date format';
-      } else if (dueDate < today) {
-        newErrors.dueAt = 'Due date must be today or in the future';
       }
     }
     
@@ -97,7 +93,6 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
     e.preventDefault();
     
     if (!validateForm()) {
-      // Focus first invalid field
       const firstErrorField = Object.keys(errors)[0];
       const element = document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement;
       element?.focus();
@@ -105,29 +100,31 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
     }
 
     try {
-      const taskData: CreateTaskRequest = {
+      const taskData: EditTaskRequest = {
         ...formData,
         title: formData.title.trim(),
         dueAt: new Date(formData.dueAt).toISOString(),
       };
       
-      await createTask(taskData).unwrap();
+      await editTask({ id: task.id, body: taskData }).unwrap();
       onSuccess();
     } catch (error: unknown) {
-      // Handle server validation errors
       const apiError = error as { status?: number; data?: { errors?: Record<string, string>; message?: string } };
       if (apiError?.status === 400 || apiError?.status === 422) {
         const serverErrors = apiError?.data?.errors || {};
         setErrors({ ...errors, ...serverErrors, general: apiError?.data?.message });
+      } else if (apiError?.status === 404) {
+        setErrors({ general: 'Task not found or already removed' });
+      } else if (apiError?.status === 409) {
+        setErrors({ general: 'This task was changed elsewhere. Please refresh and try again.' });
       } else {
-        setErrors({ general: 'Failed to create task. Please try again.' });
+        setErrors({ general: 'Failed to update task. Please try again.' });
       }
     }
   };
 
   const handleInputChange = (field: keyof typeof formData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear field error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
@@ -141,37 +138,34 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
         </div>
       )}
       
-      {/* Title */}
       <div>
-        <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="edit-title" className="block text-sm font-medium text-gray-700 mb-1">
           Title *
         </label>
         <input
           type="text"
-          id="title"
+          id="edit-title"
           name="title"
           value={formData.title}
           onChange={(e) => handleInputChange('title', e.target.value)}
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
             errors.title ? 'border-red-300' : 'border-gray-300'
           }`}
-          placeholder="Enter task title"
-          aria-describedby={errors.title ? 'title-error' : undefined}
+          aria-describedby={errors.title ? 'edit-title-error' : undefined}
         />
         {errors.title && (
-          <p id="title-error" className="mt-1 text-sm text-red-600" role="alert">
+          <p id="edit-title-error" className="mt-1 text-sm text-red-600" role="alert">
             {errors.title}
           </p>
         )}
       </div>
 
-      {/* Description */}
       <div>
-        <label htmlFor="descriptionMd" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="edit-descriptionMd" className="block text-sm font-medium text-gray-700 mb-1">
           Description
         </label>
         <textarea
-          id="descriptionMd"
+          id="edit-descriptionMd"
           name="descriptionMd"
           value={formData.descriptionMd}
           onChange={(e) => handleInputChange('descriptionMd', e.target.value)}
@@ -179,33 +173,31 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
             errors.descriptionMd ? 'border-red-300' : 'border-gray-300'
           }`}
-          placeholder="Enter task description (Markdown supported)"
-          aria-describedby={errors.descriptionMd ? 'description-error' : undefined}
+          aria-describedby={errors.descriptionMd ? 'edit-description-error' : undefined}
         />
         <p className="mt-1 text-sm text-gray-500">
           {formData.descriptionMd.length}/10,000 characters
         </p>
         {errors.descriptionMd && (
-          <p id="description-error" className="mt-1 text-sm text-red-600" role="alert">
+          <p id="edit-description-error" className="mt-1 text-sm text-red-600" role="alert">
             {errors.descriptionMd}
           </p>
         )}
       </div>
 
-      {/* Priority */}
       <div>
-        <label htmlFor="priorityId" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="edit-priorityId" className="block text-sm font-medium text-gray-700 mb-1">
           Priority *
         </label>
         <select
-          id="priorityId"
+          id="edit-priorityId"
           name="priorityId"
           value={formData.priorityId}
           onChange={(e) => handleInputChange('priorityId', e.target.value)}
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
             errors.priorityId ? 'border-red-300' : 'border-gray-300'
           }`}
-          aria-describedby={errors.priorityId ? 'priority-error' : undefined}
+          aria-describedby={errors.priorityId ? 'edit-priority-error' : undefined}
         >
           {PRIORITY_OPTIONS.map(option => (
             <option key={option.value} value={option.value}>
@@ -214,43 +206,41 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
           ))}
         </select>
         {errors.priorityId && (
-          <p id="priority-error" className="mt-1 text-sm text-red-600" role="alert">
+          <p id="edit-priority-error" className="mt-1 text-sm text-red-600" role="alert">
             {errors.priorityId}
           </p>
         )}
       </div>
 
-      {/* Due Date */}
       <div>
-        <label htmlFor="dueAt" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="edit-dueAt" className="block text-sm font-medium text-gray-700 mb-1">
           Due Date & Time *
         </label>
         <input
           type="datetime-local"
-          id="dueAt"
+          id="edit-dueAt"
           name="dueAt"
           value={formData.dueAt}
           onChange={(e) => handleInputChange('dueAt', e.target.value)}
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
             errors.dueAt ? 'border-red-300' : 'border-gray-300'
           }`}
-          aria-describedby={errors.dueAt ? 'dueAt-error' : undefined}
+          aria-describedby={errors.dueAt ? 'edit-dueAt-error' : undefined}
         />
         {errors.dueAt && (
-          <p id="dueAt-error" className="mt-1 text-sm text-red-600" role="alert">
+          <p id="edit-dueAt-error" className="mt-1 text-sm text-red-600" role="alert">
             {errors.dueAt}
           </p>
         )}
       </div>
 
-      {/* Estimate */}
       <div>
-        <label htmlFor="estimateMinutes" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="edit-estimateMinutes" className="block text-sm font-medium text-gray-700 mb-1">
           Estimated Time (minutes) *
         </label>
         <input
           type="number"
-          id="estimateMinutes"
+          id="edit-estimateMinutes"
           name="estimateMinutes"
           value={formData.estimateMinutes}
           onChange={(e) => handleInputChange('estimateMinutes', parseInt(e.target.value) || 0)}
@@ -259,32 +249,30 @@ export const CreateTaskForm = ({ onSuccess, onCancel }: CreateTaskFormProps) => 
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
             errors.estimateMinutes ? 'border-red-300' : 'border-gray-300'
           }`}
-          aria-describedby={errors.estimateMinutes ? 'estimate-error' : undefined}
+          aria-describedby={errors.estimateMinutes ? 'edit-estimate-error' : undefined}
         />
         <p className="mt-1 text-sm text-gray-500">
           {Math.floor(formData.estimateMinutes / 60)}h {formData.estimateMinutes % 60}m
         </p>
         {errors.estimateMinutes && (
-          <p id="estimate-error" className="mt-1 text-sm text-red-600" role="alert">
+          <p id="edit-estimate-error" className="mt-1 text-sm text-red-600" role="alert">
             {errors.estimateMinutes}
           </p>
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex gap-3 pt-4">
         <button
           type="submit"
           disabled={isLoading}
           className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Creating...' : 'Create Task'}
+          {isLoading ? 'Updating...' : 'Update Task'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          disabled={isLoading}
-          className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
+          className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
         >
           Cancel
         </button>

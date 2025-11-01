@@ -14,6 +14,8 @@ export const USER_ENDPOINTS = {
   GET_BY_ID: (id: number) => `users/${id}`,
   TASK_LIST: '/user/task',
   TASK_CREATE: '/user/task',
+  TASK_EDIT: '/user/task',
+  TASK_DELETE: '/user/task',
 } as const;
 
 // Authentication-related endpoints

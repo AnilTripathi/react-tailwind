@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGetUserTasksQuery } from '../service/user';
-import type { TaskQueryParams } from '../types/userTask';
+import type { TaskQueryParams, TaskItem } from '../types/userTask';
 import { toStartOfDay, toEndOfDay } from '../utils/dateUtils';
 import Slider from './Slider';
 import { CreateTaskForm } from './CreateTaskForm';
+import { EditTaskForm } from './EditTaskForm';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 
 // Status mapping for display
 const statusColors = {
@@ -36,6 +38,8 @@ const MyToDoList = () => {
   
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [isCreateSliderOpen, setIsCreateSliderOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [deletingTask, setDeletingTask] = useState<TaskItem | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   
   // Build query params with date normalization
@@ -119,7 +123,25 @@ const MyToDoList = () => {
   
   const handleCreateSuccess = () => {
     setIsCreateSliderOpen(false);
-    // Task list will automatically refresh due to cache invalidation
+  };
+
+  const handleEditSuccess = () => {
+    setEditingTask(null);
+    setMenuOpenId(null);
+  };
+
+  const handleDeleteSuccess = () => {
+    setDeletingTask(null);
+    setMenuOpenId(null);
+  };
+
+  const handleMenuAction = (action: 'edit' | 'delete', task: TaskItem) => {
+    setMenuOpenId(null);
+    if (action === 'edit') {
+      setEditingTask(task);
+    } else {
+      setDeletingTask(task);
+    }
   };
 
   return (
@@ -194,7 +216,7 @@ const MyToDoList = () => {
             {tasks.map((task) => (
             <li
               key={task.id}
-              className={`relative bg-white rounded-lg shadow-md p-6 flex flex-col md:flex-row md:items-center gap-4 border-l-4 ${
+              className={`relative bg-white rounded-lg shadow-md p-6 flex flex-col md:flex-row md:items-start gap-4 border-l-4 ${
                 task.statusId === 5 ? 'border-green-400' : 'border-indigo-400'
               }`}
             >
@@ -244,87 +266,91 @@ const MyToDoList = () => {
                   )}
                 </div>
               </div>
-              <div className="relative md:ml-4 md:items-end flex items-center">
+              
+              {/* Actions Menu */}
+              <div className="relative" ref={menuOpenId === task.id ? menuRef : null}>
                 <button
-                  onClick={() =>
-                    setMenuOpenId(menuOpenId === task.id ? null : task.id)
-                  }
-                  className="p-2 rounded-full hover:bg-gray-100 focus:outline-none"
-                  title="More Actions"
-                  aria-label="More Actions"
+                  onClick={() => setMenuOpenId(menuOpenId === task.id ? null : task.id)}
+                  className="p-2 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-md"
+                  aria-label="Task actions"
+                  aria-expanded={menuOpenId === task.id}
+                  aria-haspopup="true"
                 >
-                  <svg
-                    className="h-6 w-6 text-gray-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <circle cx="12" cy="5" r="1.5" />
-                    <circle cx="12" cy="12" r="1.5" />
-                    <circle cx="12" cy="19" r="1.5" />
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                   </svg>
                 </button>
+                
                 {menuOpenId === task.id && (
-                  <div
-                    ref={menuRef}
-                    className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 py-2 px-1"
-                    style={{ minWidth: '13rem' }}
-                  >
-                    <div className="px-3 py-2 text-xs text-gray-400 font-semibold tracking-wide uppercase select-none">
-                      Task Actions
-                    </div>
-                    <div className="px-4 py-2 text-sm text-gray-600">
-                      View task details (actions coming soon)
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                    <div className="py-1" role="menu">
+                      <button
+                        onClick={() => handleMenuAction('edit', task)}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100"
+                        role="menuitem"
+                      >
+                        Edit Task
+                      </button>
+                      <button
+                        onClick={() => handleMenuAction('delete', task)}
+                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 focus:outline-none focus:bg-red-50"
+                        role="menuitem"
+                      >
+                        Delete Task
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
             </li>
           ))}
-          </ul>
-          
-          {/* Pagination */}
-          {tasksPage && tasksPage.totalPages > 1 && (
-            <div className="flex justify-between items-center mt-6">
-              <div className="text-sm text-gray-600">
-                Showing {tasksPage.numberOfElements} of {tasksPage.totalElements} tasks
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleFilterChange('page', Math.max(0, filters.page - 1))}
-                  disabled={tasksPage.first}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Previous
-                </button>
-                <span className="px-3 py-1 text-sm text-gray-600">
-                  Page {tasksPage.number + 1} of {tasksPage.totalPages}
-                </span>
-                <button
-                  onClick={() => handleFilterChange('page', Math.min(tasksPage.totalPages - 1, filters.page + 1))}
-                  disabled={tasksPage.last}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+        </ul>
+        
+        {/* Pagination */}
+        {tasksPage && tasksPage.totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-6">
+            <button
+              onClick={() => handleFilterChange('page', Math.max(0, filters.page - 1))}
+              disabled={filters.page === 0}
+              className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-2 text-sm text-gray-600">
+              Page {filters.page + 1} of {tasksPage.totalPages}
+            </span>
+            <button
+              onClick={() => handleFilterChange('page', Math.min(tasksPage.totalPages - 1, filters.page + 1))}
+              disabled={filters.page >= tasksPage.totalPages - 1}
+              className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </>
       )}
       
       {/* Create Task Slider */}
-      <Slider
-        open={isCreateSliderOpen}
-        onClose={() => setIsCreateSliderOpen(false)}
-        title="Create New Task"
-        widthClass="max-w-lg"
-      >
-        <CreateTaskForm
-          onSuccess={handleCreateSuccess}
-          onCancel={() => setIsCreateSliderOpen(false)}
-        />
+      <Slider open={isCreateSliderOpen} onClose={() => setIsCreateSliderOpen(false)} title="Create New Task">
+        <CreateTaskForm onSuccess={handleCreateSuccess} onCancel={() => setIsCreateSliderOpen(false)} />
       </Slider>
+      
+      {/* Edit Task Slider */}
+      {editingTask && (
+        <Slider open={true} onClose={() => setEditingTask(null)} title="Edit Task">
+          <EditTaskForm task={editingTask} onSuccess={handleEditSuccess} onCancel={() => setEditingTask(null)} />
+        </Slider>
+      )}
+      
+      {/* Delete Confirmation Dialog */}
+      {deletingTask && (
+        <DeleteConfirmDialog
+          task={deletingTask}
+          onSuccess={handleDeleteSuccess}
+          onCancel={() => setDeletingTask(null)}
+        />
+      )}
     </div>
   );
 };

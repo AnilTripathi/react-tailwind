@@ -6,7 +6,7 @@
 import { appAPI } from '../api';
 import { ENDPOINTS } from '../../constants/endpoints';
 import type { User } from '../../types/user';
-import type { TaskItem, Page, TaskQueryParams, CreateTaskRequest } from '../../types/userTask';
+import type { TaskItem, Page, TaskQueryParams, CreateTaskRequest, EditTaskRequest } from '../../types/userTask';
 
 /**
  * Build query string from TaskQueryParams
@@ -50,7 +50,22 @@ export const userApi = appAPI.injectEndpoints({
       }),
       invalidatesTags: ['UserTask'],
     }),
+    editUserTask: builder.mutation<TaskItem, { id: string; body: EditTaskRequest }>({
+      query: ({ id, body }) => ({
+        url: `${ENDPOINTS.USER.TASK_EDIT}/${id}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: ['UserTask'],
+    }),
+    deleteUserTask: builder.mutation<void, { id: string }>({
+      query: ({ id }) => ({
+        url: `${ENDPOINTS.USER.TASK_DELETE}/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['UserTask'],
+    }),
   }),
 });
 
-export const { useGetUsersQuery, useGetUserByIdQuery, useGetUserTasksQuery, useCreateUserTaskMutation } = userApi;
+export const { useGetUsersQuery, useGetUserByIdQuery, useGetUserTasksQuery, useCreateUserTaskMutation, useEditUserTaskMutation, useDeleteUserTaskMutation } = userApi;
