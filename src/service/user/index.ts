@@ -6,6 +6,26 @@
 import { appAPI } from '../api';
 import { ENDPOINTS } from '../../constants/endpoints';
 import type { User } from '../../types/user';
+import type { TaskItem, Page, TaskQueryParams, CreateTaskRequest } from '../../types/userTask';
+
+/**
+ * Build query string from TaskQueryParams
+ * Omits undefined values and formats parameters correctly
+ */
+const buildTaskQueryString = (params: TaskQueryParams): string => {
+  const searchParams = new URLSearchParams();
+  
+  if (params.status !== undefined) searchParams.set('status', params.status.toString());
+  if (params.q) searchParams.set('q', params.q);
+  if (params.fromDue) searchParams.set('fromDue', params.fromDue);
+  if (params.toDue) searchParams.set('toDue', params.toDue);
+  
+  searchParams.set('page', params.page.toString());
+  searchParams.set('size', params.size.toString());
+  searchParams.set('sort', params.sort);
+  
+  return searchParams.toString();
+};
 
 export const userApi = appAPI.injectEndpoints({
   endpoints: (builder) => ({
@@ -15,7 +35,22 @@ export const userApi = appAPI.injectEndpoints({
     getUserById: builder.query<User, number>({
       query: (id) => ENDPOINTS.USER.GET_BY_ID(id),
     }),
+    getUserTasks: builder.query<Page<TaskItem>, TaskQueryParams>({
+      query: (params) => {
+        const queryString = buildTaskQueryString(params);
+        return `${ENDPOINTS.USER.TASK_LIST}?${queryString}`;
+      },
+      providesTags: ['UserTask'],
+    }),
+    createUserTask: builder.mutation<TaskItem, CreateTaskRequest>({
+      query: (taskData) => ({
+        url: ENDPOINTS.USER.TASK_CREATE,
+        method: 'POST',
+        body: taskData,
+      }),
+      invalidatesTags: ['UserTask'],
+    }),
   }),
 });
 
-export const { useGetUsersQuery, useGetUserByIdQuery } = userApi;
+export const { useGetUsersQuery, useGetUserByIdQuery, useGetUserTasksQuery, useCreateUserTaskMutation } = userApi;

@@ -1,28 +1,53 @@
-import { useAppSelector, useAppDispatch } from '@/hooks/redux';
-import {
-  selectTotoList,
-  deleteTodo,
-  toggleTodo,
-  updateToto,
-} from '@/service/mytodo';
-import { useState, useRef, useEffect } from 'react';
-import type { Todo } from '@/types/todo';
-import AddTodoForm from './AddTodoForm';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useGetUserTasksQuery } from '../service/user';
+import type { TaskQueryParams } from '../types/userTask';
+import { toStartOfDay, toEndOfDay } from '../utils/dateUtils';
 import Slider from './Slider';
+import { CreateTaskForm } from './CreateTaskForm';
 
-const priorityColors = {
-  low: 'bg-green-100 text-green-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-red-100 text-red-700',
+// Status mapping for display
+const statusColors = {
+  1: 'bg-gray-100 text-gray-700', // Backlog
+  2: 'bg-blue-100 text-blue-700', // Todo
+  3: 'bg-yellow-100 text-yellow-700', // In Progress
+  4: 'bg-red-100 text-red-700', // Blocked
+  5: 'bg-green-100 text-green-700', // Done
 };
 
+const priorityColors = {
+  1: 'bg-green-100 text-green-700', // Low
+  2: 'bg-yellow-100 text-yellow-700', // Medium
+  3: 'bg-red-100 text-red-700', // High
+};
+
+
+
 const MyToDoList = () => {
-  const todoList = useAppSelector(selectTotoList);
-  const dispatch = useAppDispatch();
-  const [editId, setEditId] = useState<number | null>(null);
-  const [editTodo, setEditTodo] = useState<Todo | null>(null);
-  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
+  // Filter state
+  const [filters, setFilters] = useState({
+    status: undefined as number | undefined,
+    q: '',
+    fromDue: '',
+    toDue: '',
+    page: 0,
+    size: 20,
+    sort: 'dueAt,asc', // Default sort by due date ascending
+  });
+  
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [isCreateSliderOpen, setIsCreateSliderOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  
+  // Build query params with date normalization
+  const queryParams: TaskQueryParams = useMemo(() => ({
+    ...filters,
+    fromDue: filters.fromDue ? toStartOfDay(filters.fromDue) : undefined,
+    toDue: filters.toDue ? toEndOfDay(filters.toDue) : undefined,
+    q: filters.q || undefined,
+  }), [filters]);
+  
+  // Fetch tasks using RTK Query
+  const { data: tasksPage, error, isLoading, refetch } = useGetUserTasksQuery(queryParams);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -38,117 +63,182 @@ const MyToDoList = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [menuOpenId]);
+  
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (filters.q !== queryParams.q) {
+        setFilters(prev => ({ ...prev, page: 0 })); // Reset page on search
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.q]);
+  
+  const handleFilterChange = (key: keyof typeof filters, value: string | number | undefined) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value,
+      page: key !== 'page' ? 0 : (value as number), // Reset page when changing filters
+    }));
+  };
+  
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+  
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
 
-  const handleToggle = (todo: Todo) => {
-    dispatch(
-      toggleTodo({
-        id: todo.id,
-        completed: !todo.completed,
-        completedDate: !todo.completed
-          ? new Date().toISOString().slice(0, 10)
-          : '',
-      })
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <span className="ml-2 text-gray-600">Loading tasks...</span>
+      </div>
     );
-    setMenuOpenId(null);
-  };
-
-  const handleDelete = (id: number) => {
-    if (window.confirm('Are you sure you want to delete this todo?')) {
-      dispatch(deleteTodo(id));
-    }
-    setMenuOpenId(null);
-  };
-
-  const handleEdit = (todo: Todo) => {
-    setEditId(todo.id);
-    setEditTodo(todo);
-    setMenuOpenId(null);
-  };
-
-  const handleUpdate = (updated: Todo) => {
-    dispatch(updateToto(updated));
-    setEditId(null);
-    setEditTodo(null);
+  }
+  
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-600 mb-4">Error loading tasks</div>
+        <button
+          onClick={() => refetch()}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+  
+  const tasks = tasksPage?.content || [];
+  
+  const handleCreateSuccess = () => {
+    setIsCreateSliderOpen(false);
+    // Task list will automatically refresh due to cache invalidation
   };
 
   return (
     <div className="space-y-6">
-      {todoList.length === 0 ? (
+      {/* Header with Create Button */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">My Tasks</h2>
+        <button
+          onClick={() => setIsCreateSliderOpen(true)}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        >
+          Create Task
+        </button>
+      </div>
+      
+      {/* Filter Bar */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={filters.status || ''}
+              onChange={(e) => handleFilterChange('status', e.target.value ? Number(e.target.value) : undefined)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            >
+              <option value="">All Status</option>
+              <option value="1">Backlog</option>
+              <option value="2">Todo</option>
+              <option value="3">In Progress</option>
+              <option value="4">Blocked</option>
+              <option value="5">Done</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <input
+              type="text"
+              value={filters.q}
+              onChange={(e) => handleFilterChange('q', e.target.value)}
+              placeholder="Search tasks..."
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+            <input
+              type="date"
+              value={filters.fromDue}
+              onChange={(e) => handleFilterChange('fromDue', e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+            <input
+              type="date"
+              value={filters.toDue}
+              onChange={(e) => handleFilterChange('toDue', e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+      </div>
+      
+      {tasks.length === 0 ? (
         <div className="text-center text-gray-400 py-12 text-lg">
-          No todos yet. Add your first todo!
+          No tasks found. Try adjusting your filters.
         </div>
       ) : (
-        <ul className="space-y-4">
-          {todoList.map((todo) => (
+        <>
+          <ul className="space-y-4">
+            {tasks.map((task) => (
             <li
-              key={todo.id}
+              key={task.id}
               className={`relative bg-white rounded-lg shadow-md p-6 flex flex-col md:flex-row md:items-center gap-4 border-l-4 ${
-                todo.completed ? 'border-green-400' : 'border-indigo-400'
+                task.statusId === 5 ? 'border-green-400' : 'border-indigo-400'
               }`}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <button
-                    onClick={() => handleToggle(todo)}
-                    className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors focus:outline-none ${
-                      todo.completed
-                        ? 'border-green-500 bg-green-500'
-                        : 'border-gray-300 bg-white'
-                    }`}
-                    title={
-                      todo.completed ? 'Mark as uncomplete' : 'Mark as complete'
-                    }
-                  >
-                    {todo.completed && (
-                      <svg
-                        className="h-3 w-3 text-white"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
-                  </button>
                   <span
-                    className={`font-semibold text-lg ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}
+                    className={`font-semibold text-lg ${task.statusId === 5 ? 'line-through text-gray-400' : 'text-gray-900'}`}
                   >
-                    {todo.title}
+                    {task.title}
                   </span>
                   <span
-                    className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${priorityColors[todo.priority]}`}
+                    className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${statusColors[task.statusId as keyof typeof statusColors] || 'bg-gray-100 text-gray-700'}`}
                   >
-                    {todo.priority}
+                    {task.statusName}
+                  </span>
+                  <span
+                    className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${priorityColors[task.priorityId as keyof typeof priorityColors] || 'bg-gray-100 text-gray-700'}`}
+                  >
+                    {task.priorityName}
                   </span>
                 </div>
                 <div
-                  className={`text-gray-600 mb-2 ${todo.completed ? 'line-through' : ''}`}
+                  className={`text-gray-600 mb-2 ${task.statusId === 5 ? 'line-through' : ''}`}
                 >
-                  {todo.description}
+                  {task.descriptionMd.length > 100 ? `${task.descriptionMd.substring(0, 100)}...` : task.descriptionMd}
                 </div>
                 <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                   <span>
-                    Assigned:{' '}
+                    Due:{' '}
                     <span className="font-medium text-gray-700">
-                      {todo.assignDate}
+                      {formatDate(task.dueAt)}
                     </span>
                   </span>
                   <span>
-                    Due:{' '}
+                    Time:{' '}
                     <span className="font-medium text-gray-700">
-                      {todo.dueDate}
+                      {formatTime(task.spentMinutes)} / {formatTime(task.estimateMinutes)}
                     </span>
                   </span>
-                  {todo.completed && todo.completedDate && (
+                  {task.completedAt && (
                     <span>
                       Completed:{' '}
                       <span className="font-medium text-green-600">
-                        {todo.completedDate}
+                        {formatDate(task.completedAt)}
                       </span>
                     </span>
                   )}
@@ -157,7 +247,7 @@ const MyToDoList = () => {
               <div className="relative md:ml-4 md:items-end flex items-center">
                 <button
                   onClick={() =>
-                    setMenuOpenId(menuOpenId === todo.id ? null : todo.id)
+                    setMenuOpenId(menuOpenId === task.id ? null : task.id)
                   }
                   className="p-2 rounded-full hover:bg-gray-100 focus:outline-none"
                   title="More Actions"
@@ -174,131 +264,67 @@ const MyToDoList = () => {
                     <circle cx="12" cy="19" r="1.5" />
                   </svg>
                 </button>
-                {menuOpenId === todo.id && (
+                {menuOpenId === task.id && (
                   <div
                     ref={menuRef}
-                    className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 animate-fade-in py-2 px-1"
+                    className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 py-2 px-1"
                     style={{ minWidth: '13rem' }}
                   >
                     <div className="px-3 py-2 text-xs text-gray-400 font-semibold tracking-wide uppercase select-none">
-                      More Actions
+                      Task Actions
                     </div>
-                    <button
-                      onClick={() => handleEdit(todo)}
-                      className="flex items-center w-full gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors font-medium"
-                    >
-                      <svg
-                        className="h-5 w-5 text-blue-500"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M15.232 5.232l3.536 3.536M9 13l6-6 3 3-6 6H9v-3z"
-                        />
-                      </svg>
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(todo.id)}
-                      className="flex items-center w-full gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors font-medium"
-                    >
-                      <svg
-                        className="h-5 w-5 text-red-500"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => handleToggle(todo)}
-                      className="flex items-center w-full gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors font-medium"
-                    >
-                      {todo.completed ? (
-                        <>
-                          <svg
-                            className="h-5 w-5 text-gray-500"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          Mark as Uncomplete
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="h-5 w-5 text-green-500"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          Mark as Complete
-                        </>
-                      )}
-                    </button>
+                    <div className="px-4 py-2 text-sm text-gray-600">
+                      View task details (actions coming soon)
+                    </div>
                   </div>
                 )}
               </div>
-              {/* Edit slider using AddTodoForm */}
-              <Slider
-                open={editId === todo.id}
-                onClose={() => {
-                  setEditId(null);
-                  setEditTodo(null);
-                }}
-                title="Edit Todo"
-              >
-                <AddTodoForm
-                  initialData={editTodo || todo}
-                  onSubmit={(updated) => {
-                    handleUpdate(updated);
-                  }}
-                  onCancel={() => {
-                    setEditId(null);
-                    setEditTodo(null);
-                  }}
-                  isEdit
-                />
-              </Slider>
-              {/* Add animation for dropdown */}
-              <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.15s ease;
-        }
-      `}</style>
             </li>
           ))}
-        </ul>
+          </ul>
+          
+          {/* Pagination */}
+          {tasksPage && tasksPage.totalPages > 1 && (
+            <div className="flex justify-between items-center mt-6">
+              <div className="text-sm text-gray-600">
+                Showing {tasksPage.numberOfElements} of {tasksPage.totalElements} tasks
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleFilterChange('page', Math.max(0, filters.page - 1))}
+                  disabled={tasksPage.first}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Previous
+                </button>
+                <span className="px-3 py-1 text-sm text-gray-600">
+                  Page {tasksPage.number + 1} of {tasksPage.totalPages}
+                </span>
+                <button
+                  onClick={() => handleFilterChange('page', Math.min(tasksPage.totalPages - 1, filters.page + 1))}
+                  disabled={tasksPage.last}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
+      
+      {/* Create Task Slider */}
+      <Slider
+        open={isCreateSliderOpen}
+        onClose={() => setIsCreateSliderOpen(false)}
+        title="Create New Task"
+        widthClass="max-w-lg"
+      >
+        <CreateTaskForm
+          onSuccess={handleCreateSuccess}
+          onCancel={() => setIsCreateSliderOpen(false)}
+        />
+      </Slider>
     </div>
   );
 };
