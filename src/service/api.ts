@@ -14,9 +14,8 @@ import type {
 } from '@reduxjs/toolkit/query/react';
 import type { RootState } from '../store';
 import { tokenRefreshed, logout } from '../store/authSlice';
-import { tokenStorage } from '../utils/tokenStorage';
 import { ENDPOINTS } from '../constants/endpoints';
-import type { RefreshResponse } from '../types/auth';
+import type { RefreshRequest, RefreshResponse } from '../types/auth';
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
 
@@ -41,18 +40,25 @@ const baseQueryWithReauth: BaseQueryFn<
 
   if (result.error && result.error.status === 401) {
     if (!refreshPromise) {
-      const refreshToken = tokenStorage.getRefreshToken();
-      if (!refreshToken) {
+      const authState = (api.getState() as RootState).auth;
+      const { accessToken, refreshToken } = authState;
+      
+      if (!refreshToken || !accessToken) {
         api.dispatch(logout());
         return result;
       }
 
       refreshPromise = (async () => {
+        const refreshRequestBody: RefreshRequest = {
+          accessToken,
+          refreshToken,
+        };
+        
         const refreshResult = await baseQuery(
           {
             url: ENDPOINTS.AUTH.REFRESH,
             method: 'POST',
-            body: { refreshToken },
+            body: refreshRequestBody,
           },
           api,
           extraOptions
@@ -64,17 +70,18 @@ const baseQueryWithReauth: BaseQueryFn<
         }
         
         api.dispatch(logout());
-        tokenStorage.clear();
         throw new Error('Refresh failed');
       })();
     }
 
     try {
       const refreshData = await refreshPromise;
-      api.dispatch(tokenRefreshed({ accessToken: refreshData.accessToken }));
-      tokenStorage.setRefreshToken(refreshData.refreshToken);
+      api.dispatch(tokenRefreshed({ 
+        accessToken: refreshData.accessToken,
+        refreshToken: refreshData.refreshToken 
+      }));
 
-      // Retry original request
+      // Retry original request once
       result = await baseQuery(args, api, extraOptions);
     } catch {
       // Refresh failed, user will be logged out

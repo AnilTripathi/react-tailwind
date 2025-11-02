@@ -1,6 +1,6 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { logout as logoutAction } from './authSlice';
-import { tokenStorage } from '../utils/tokenStorage';
+
 import { ENDPOINTS } from '../constants/endpoints';
 
 export const logoutThunk = createAsyncThunk(
@@ -15,16 +15,14 @@ export const logoutThunk = createAsyncThunk(
         },
       });
 
-      // Clear local storage regardless of API response
-      tokenStorage.clear();
+      // Token clearing is handled by logout action in Redux state
       
       // Dispatch logout action to clear Redux state
       dispatch(logoutAction());
       
       return response.ok;
-    } catch (error) {
-      // Even if API fails, clear local state
-      tokenStorage.clear();
+    } catch {
+      // Even if API fails, clear Redux state
       dispatch(logoutAction());
       return rejectWithValue('Logout failed');
     }

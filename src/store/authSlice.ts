@@ -4,6 +4,7 @@ import type { AuthState } from '../types/auth';
 
 const initialState: AuthState = {
   accessToken: null,
+  refreshToken: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
@@ -17,8 +18,9 @@ export const authSlice = createSlice({
       state.isLoading = true;
       state.error = null;
     },
-    loginSuccess: (state, action: PayloadAction<{ accessToken: string }>) => {
+    loginSuccess: (state, action: PayloadAction<{ accessToken: string; refreshToken: string }>) => {
       state.accessToken = action.payload.accessToken;
+      state.refreshToken = action.payload.refreshToken;
       state.isAuthenticated = true;
       state.isLoading = false;
       state.error = null;
@@ -29,12 +31,16 @@ export const authSlice = createSlice({
       state.isLoading = false;
       state.error = action.payload;
     },
-    tokenRefreshed: (state, action: PayloadAction<{ accessToken: string }>) => {
+    tokenRefreshed: (state, action: PayloadAction<{ accessToken: string; refreshToken?: string }>) => {
       state.accessToken = action.payload.accessToken;
+      if (action.payload.refreshToken) {
+        state.refreshToken = action.payload.refreshToken;
+      }
       state.isAuthenticated = true;
     },
     logout: (state) => {
       state.accessToken = null;
+      state.refreshToken = null;
       state.isAuthenticated = false;
       state.isLoading = false;
       state.error = null;

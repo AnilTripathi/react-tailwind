@@ -5,7 +5,7 @@
 
 import { appAPI } from '../api';
 import { ENDPOINTS } from '../../constants/endpoints';
-import type { LoginRequest, LoginResponse, RefreshResponse } from '../../types/auth';
+import type { LoginRequest, LoginResponse, RefreshRequest, RefreshResponse } from '../../types/auth';
 
 export const authApi = appAPI.injectEndpoints({
   endpoints: (builder) => ({
@@ -16,11 +16,11 @@ export const authApi = appAPI.injectEndpoints({
         body: credentials,
       }),
     }),
-    refresh: builder.mutation<RefreshResponse, { refreshToken: string }>({
-      query: ({ refreshToken }) => ({
+    refresh: builder.mutation<RefreshResponse, RefreshRequest>({
+      query: (refreshRequest) => ({
         url: ENDPOINTS.AUTH.REFRESH,
         method: 'POST',
-        body: { refreshToken },
+        body: refreshRequest,
       }),
     }),
     logout: builder.mutation<void, void>({

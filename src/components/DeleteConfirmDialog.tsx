@@ -40,8 +40,14 @@ export const DeleteConfirmDialog = ({ task, onSuccess, onCancel }: DeleteConfirm
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200" 
+      role="dialog" 
+      aria-modal="true" 
+      aria-labelledby="delete-dialog-title"
+      style={{ backdropFilter: 'blur(4px)' }}
+    >
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in zoom-in-95 duration-200">
         <h3 id="delete-dialog-title" className="text-lg font-semibold text-gray-900 mb-4">
           Delete Task
         </h3>

@@ -8,7 +8,7 @@ import {
 } from '../store/authSlice';
 import { logoutThunk } from '../store/authThunks';
 import { useLoginMutation } from '../service/auth';
-import { tokenStorage } from '../utils/tokenStorage';
+
 import { persistor } from '../store';
 import type { LoginRequest } from '../types/auth';
 
@@ -22,8 +22,10 @@ export const useAuth = () => {
     dispatch(loginStart());
     try {
       const result = await loginMutation(credentials).unwrap();
-      tokenStorage.setRefreshToken(result.refreshToken);
-      dispatch(loginSuccess({ accessToken: result.accessToken }));
+      dispatch(loginSuccess({ 
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken 
+      }));
       return result;
     } catch (error: unknown) {
       const errorMessage = (error as { data?: { message?: string } })?.data?.message || 'Login failed';

@@ -14,6 +14,11 @@ export interface LoginResponse {
   expiresIn: number;
 }
 
+export interface RefreshRequest {
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface RefreshResponse {
   accessToken: string;
   refreshToken: string;
@@ -22,6 +27,7 @@ export interface RefreshResponse {
 
 export interface AuthState {
   accessToken: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
