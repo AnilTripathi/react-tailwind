@@ -1,1 +1,174 @@
-import { rest } from 'msw';\nimport { setupServer } from 'msw/node';\nimport { configureStore } from '@reduxjs/toolkit';\nimport { appAPI } from '../service/api';\nimport type { CreateTaskRequest, TaskItem } from '../types/userTask';\n\n// Mock response\nconst mockTaskResponse: TaskItem = {\n  id: '123e4567-e89b-12d3-a456-426614174000',\n  title: 'Test Task',\n  descriptionMd: 'Test description',\n  statusId: 2,\n  statusName: 'Todo',\n  priorityId: 2,\n  priorityName: 'Medium',\n  dueAt: '2024-12-31T23:59:59Z',\n  estimateMinutes: 120,\n  spentMinutes: 0,\n  completedAt: null,\n  createdAt: '2024-01-01T09:00:00Z',\n  updatedAt: '2024-01-01T09:00:00Z',\n};\n\n// MSW server setup\nconst server = setupServer(\n  rest.post('*/user/task', (req, res, ctx) => {\n    return res(ctx.json(mockTaskResponse));\n  })\n);\n\nbeforeAll(() => server.listen());\nafterEach(() => server.resetHandlers());\nafterAll(() => server.close());\n\nconst createTestStore = () => {\n  return configureStore({\n    reducer: {\n      [appAPI.reducerPath]: appAPI.reducer,\n    },\n    middleware: (getDefaultMiddleware) =>\n      getDefaultMiddleware().concat(appAPI.middleware),\n  });\n};\n\ndescribe('Create Task Service', () => {\n  it('successfully creates a task', async () => {\n    const store = createTestStore();\n    \n    const taskData: CreateTaskRequest = {\n      title: 'Test Task',\n      descriptionMd: 'Test description',\n      priorityId: '2',\n      dueAt: '2024-12-31T23:59:59Z',\n      estimateMinutes: 120,\n    };\n    \n    const result = await store.dispatch(\n      appAPI.endpoints.createUserTask.initiate(taskData)\n    );\n    \n    expect(result.data).toEqual(mockTaskResponse);\n  });\n\n  it('handles 400 validation errors', async () => {\n    server.use(\n      rest.post('*/user/task', (req, res, ctx) => {\n        return res(\n          ctx.status(400),\n          ctx.json({\n            message: 'Validation failed',\n            errors: {\n              title: 'Title is required',\n            },\n          })\n        );\n      })\n    );\n    \n    const store = createTestStore();\n    \n    const taskData: CreateTaskRequest = {\n      title: '',\n      descriptionMd: 'Test description',\n      priorityId: '2',\n      dueAt: '2024-12-31T23:59:59Z',\n      estimateMinutes: 120,\n    };\n    \n    const result = await store.dispatch(\n      appAPI.endpoints.createUserTask.initiate(taskData)\n    );\n    \n    expect(result.error).toBeDefined();\n    expect((result.error as any).status).toBe(400);\n  });\n\n  it('handles 401 unauthorized errors', async () => {\n    server.use(\n      rest.post('*/user/task', (req, res, ctx) => {\n        return res(ctx.status(401), ctx.json({ message: 'Unauthorized' }));\n      })\n    );\n    \n    const store = createTestStore();\n    \n    const taskData: CreateTaskRequest = {\n      title: 'Test Task',\n      descriptionMd: 'Test description',\n      priorityId: '2',\n      dueAt: '2024-12-31T23:59:59Z',\n      estimateMinutes: 120,\n    };\n    \n    const result = await store.dispatch(\n      appAPI.endpoints.createUserTask.initiate(taskData)\n    );\n    \n    expect(result.error).toBeDefined();\n    expect((result.error as any).status).toBe(401);\n  });\n\n  it('handles 500 server errors', async () => {\n    server.use(\n      rest.post('*/user/task', (req, res, ctx) => {\n        return res(ctx.status(500), ctx.json({ message: 'Internal server error' }));\n      })\n    );\n    \n    const store = createTestStore();\n    \n    const taskData: CreateTaskRequest = {\n      title: 'Test Task',\n      descriptionMd: 'Test description',\n      priorityId: '2',\n      dueAt: '2024-12-31T23:59:59Z',\n      estimateMinutes: 120,\n    };\n    \n    const result = await store.dispatch(\n      appAPI.endpoints.createUserTask.initiate(taskData)\n    );\n    \n    expect(result.error).toBeDefined();\n    expect((result.error as any).status).toBe(500);\n  });\n\n  it('sends correct request payload', async () => {\n    let requestBody: any;\n    \n    server.use(\n      rest.post('*/user/task', async (req, res, ctx) => {\n        requestBody = await req.json();\n        return res(ctx.json(mockTaskResponse));\n      })\n    );\n    \n    const store = createTestStore();\n    \n    const taskData: CreateTaskRequest = {\n      title: 'Test Task',\n      descriptionMd: 'Test description',\n      priorityId: '3',\n      dueAt: '2024-12-31T23:59:59Z',\n      estimateMinutes: 180,\n    };\n    \n    await store.dispatch(\n      appAPI.endpoints.createUserTask.initiate(taskData)\n    );\n    \n    expect(requestBody).toEqual(taskData);\n  });\n});
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { configureStore } from '@reduxjs/toolkit';
+import { appAPI } from '../service/api';
+import { userApi } from '../service/user';
+import type { CreateTaskRequest, TaskItem } from '../types/userTask';
+
+// Mock response
+const mockTaskResponse: TaskItem = {
+  id: '123e4567-e89b-12d3-a456-426614174000',
+  title: 'Test Task',
+  descriptionMd: 'Test description',
+  statusId: 2,
+  statusName: 'Todo',
+  priorityId: 2,
+  priorityName: 'Medium',
+  dueAt: '2024-12-31T23:59:59Z',
+  estimateMinutes: 120,
+  spentMinutes: 0,
+  completedAt: null,
+  createdAt: '2024-01-01T09:00:00Z',
+  updatedAt: '2024-01-01T09:00:00Z',
+};
+
+// MSW server setup
+const server = setupServer(
+  http.post('*/user/task', () => {
+    return HttpResponse.json(mockTaskResponse);
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+const createTestStore = () => {
+  return configureStore({
+    reducer: {
+      [appAPI.reducerPath]: appAPI.reducer,
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(appAPI.middleware),
+  });
+};
+
+describe('Create Task Service', () => {
+  it('successfully creates a task', async () => {
+    const store = createTestStore();
+    
+    const taskData: CreateTaskRequest = {
+      title: 'Test Task',
+      descriptionMd: 'Test description',
+      priorityId: '2',
+      dueAt: '2024-12-31T23:59:59Z',
+      estimateMinutes: 120,
+    };
+    
+    const result = await store.dispatch(
+      userApi.endpoints.createUserTask.initiate(taskData)
+    );
+    
+    expect(result.data).toEqual(mockTaskResponse);
+  });
+
+  it('handles 400 validation errors', async () => {
+    server.use(
+      http.post('*/user/task', () => {
+        return HttpResponse.json(
+          {
+            message: 'Validation failed',
+            errors: {
+              title: 'Title is required',
+            },
+          },
+          { status: 400 }
+        );
+      })
+    );
+    
+    const store = createTestStore();
+    
+    const taskData: CreateTaskRequest = {
+      title: '',
+      descriptionMd: 'Test description',
+      priorityId: '2',
+      dueAt: '2024-12-31T23:59:59Z',
+      estimateMinutes: 120,
+    };
+    
+    const result = await store.dispatch(
+      userApi.endpoints.createUserTask.initiate(taskData)
+    );
+    
+    expect(result.error).toBeDefined();
+    expect((result.error as { status: number }).status).toBe(400);
+  });
+
+  it('handles 401 unauthorized errors', async () => {
+    server.use(
+      http.post('*/user/task', () => {
+        return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      })
+    );
+    
+    const store = createTestStore();
+    
+    const taskData: CreateTaskRequest = {
+      title: 'Test Task',
+      descriptionMd: 'Test description',
+      priorityId: '2',
+      dueAt: '2024-12-31T23:59:59Z',
+      estimateMinutes: 120,
+    };
+    
+    const result = await store.dispatch(
+      userApi.endpoints.createUserTask.initiate(taskData)
+    );
+    
+    expect(result.error).toBeDefined();
+    expect((result.error as { status: number }).status).toBe(401);
+  });
+
+  it('handles 500 server errors', async () => {
+    server.use(
+      http.post('*/user/task', () => {
+        return HttpResponse.json({ message: 'Internal server error' }, { status: 500 });
+      })
+    );
+    
+    const store = createTestStore();
+    
+    const taskData: CreateTaskRequest = {
+      title: 'Test Task',
+      descriptionMd: 'Test description',
+      priorityId: '2',
+      dueAt: '2024-12-31T23:59:59Z',
+      estimateMinutes: 120,
+    };
+    
+    const result = await store.dispatch(
+      userApi.endpoints.createUserTask.initiate(taskData)
+    );
+    
+    expect(result.error).toBeDefined();
+    expect((result.error as { status: number }).status).toBe(500);
+  });
+
+  it('sends correct request payload', async () => {
+    let requestBody: CreateTaskRequest | undefined;
+    
+    server.use(
+      http.post('*/user/task', async ({ request }) => {
+        requestBody = await request.json() as CreateTaskRequest;
+        return HttpResponse.json(mockTaskResponse);
+      })
+    );
+    
+    const store = createTestStore();
+    
+    const taskData: CreateTaskRequest = {
+      title: 'Test Task',
+      descriptionMd: 'Test description',
+      priorityId: '3',
+      dueAt: '2024-12-31T23:59:59Z',
+      estimateMinutes: 180,
+    };
+    
+    await store.dispatch(
+      userApi.endpoints.createUserTask.initiate(taskData)
+    );
+    
+    expect(requestBody).toEqual(taskData);
+  });
+});

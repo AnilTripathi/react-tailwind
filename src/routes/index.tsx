@@ -18,6 +18,8 @@ const AboutPage = lazy(() => import('../pages/about'));
 const NotFound = lazy(() => import('../pages/notfound'));
 const MyToDosPage = lazy(() => import('../pages/mytodo/MyToDo'));
 const UserPage = lazy(() => import('../pages/user'));
+const ProfilePage = lazy(() => import('../pages/profile'));
+const SettingsPage = lazy(() => import('../pages/settings'));
 
 // Private route wrapper that includes Layout
 const PrivateRouteWithLayout = ({
@@ -62,6 +64,22 @@ const AppRouter = () => {
             element={
               <PrivateRouteWithLayout>
                 <UserPage />
+              </PrivateRouteWithLayout>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <PrivateRouteWithLayout>
+                <ProfilePage />
+              </PrivateRouteWithLayout>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <PrivateRouteWithLayout>
+                <SettingsPage />
               </PrivateRouteWithLayout>
             }
           />

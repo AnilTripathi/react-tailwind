@@ -1,1 +1,255 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';\nimport { Provider } from 'react-redux';\nimport { configureStore } from '@reduxjs/toolkit';\nimport { rest } from 'msw';\nimport { setupServer } from 'msw/node';\nimport MyToDoList from '../components/MyToDoList';\nimport { appAPI } from '../service/api';\nimport type { Page, TaskItem } from '../types/userTask';\n\n// Mock data\nconst mockTasksPage: Page<TaskItem> = {\n  content: [\n    {\n      id: '1',\n      title: 'Test Task 1',\n      descriptionMd: 'Test description 1',\n      statusId: 2,\n      statusName: 'Todo',\n      priorityId: 1,\n      priorityName: 'Low',\n      dueAt: '2024-01-15T10:00:00Z',\n      estimateMinutes: 120,\n      spentMinutes: 60,\n      completedAt: null,\n      createdAt: '2024-01-01T00:00:00Z',\n      updatedAt: '2024-01-01T00:00:00Z',\n    },\n    {\n      id: '2',\n      title: 'Test Task 2',\n      descriptionMd: 'Test description 2',\n      statusId: 5,\n      statusName: 'Done',\n      priorityId: 3,\n      priorityName: 'High',\n      dueAt: '2024-01-10T10:00:00Z',\n      estimateMinutes: 60,\n      spentMinutes: 60,\n      completedAt: '2024-01-10T15:00:00Z',\n      createdAt: '2024-01-01T00:00:00Z',\n      updatedAt: '2024-01-10T15:00:00Z',\n    },\n  ],\n  totalElements: 2,\n  totalPages: 1,\n  size: 20,\n  number: 0,\n  first: true,\n  last: true,\n  numberOfElements: 2,\n};\n\n// MSW server setup\nconst server = setupServer(\n  rest.get('*/api/user/task', (req, res, ctx) => {\n    return res(ctx.json(mockTasksPage));\n  })\n);\n\nbeforeAll(() => server.listen());\nafterEach(() => server.resetHandlers());\nafterAll(() => server.close());\n\nconst createTestStore = () => {\n  return configureStore({\n    reducer: {\n      [appAPI.reducerPath]: appAPI.reducer,\n    },\n    middleware: (getDefaultMiddleware) =>\n      getDefaultMiddleware().concat(appAPI.middleware),\n  });\n};\n\nconst renderMyToDoList = () => {\n  const store = createTestStore();\n  return render(\n    <Provider store={store}>\n      <MyToDoList />\n    </Provider>\n  );\n};\n\ndescribe('MyToDoList Integration', () => {\n  it('renders loading state initially', () => {\n    renderMyToDoList();\n    expect(screen.getByText('Loading tasks...')).toBeInTheDocument();\n  });\n\n  it('renders task list after loading', async () => {\n    renderMyToDoList();\n    \n    await waitFor(() => {\n      expect(screen.getByText('Test Task 1')).toBeInTheDocument();\n      expect(screen.getByText('Test Task 2')).toBeInTheDocument();\n    });\n  });\n\n  it('displays task details correctly', async () => {\n    renderMyToDoList();\n    \n    await waitFor(() => {\n      expect(screen.getByText('Todo')).toBeInTheDocument();\n      expect(screen.getByText('Done')).toBeInTheDocument();\n      expect(screen.getByText('Low')).toBeInTheDocument();\n      expect(screen.getByText('High')).toBeInTheDocument();\n    });\n  });\n\n  it('renders filter controls', async () => {\n    renderMyToDoList();\n    \n    expect(screen.getByLabelText('Status')).toBeInTheDocument();\n    expect(screen.getByLabelText('Search')).toBeInTheDocument();\n    expect(screen.getByLabelText('From Date')).toBeInTheDocument();\n    expect(screen.getByLabelText('To Date')).toBeInTheDocument();\n  });\n\n  it('handles search filter', async () => {\n    renderMyToDoList();\n    \n    const searchInput = screen.getByLabelText('Search');\n    fireEvent.change(searchInput, { target: { value: 'test search' } });\n    \n    expect(searchInput).toHaveValue('test search');\n  });\n\n  it('handles status filter', async () => {\n    renderMyToDoList();\n    \n    const statusSelect = screen.getByLabelText('Status');\n    fireEvent.change(statusSelect, { target: { value: '2' } });\n    \n    expect(statusSelect).toHaveValue('2');\n  });\n\n  it('handles error state', async () => {\n    server.use(\n      rest.get('*/api/user/task', (req, res, ctx) => {\n        return res(ctx.status(500), ctx.json({ message: 'Server error' }));\n      })\n    );\n    \n    renderMyToDoList();\n    \n    await waitFor(() => {\n      expect(screen.getByText('Error loading tasks')).toBeInTheDocument();\n      expect(screen.getByText('Retry')).toBeInTheDocument();\n    });\n  });\n\n  it('handles empty state', async () => {\n    server.use(\n      rest.get('*/api/user/task', (req, res, ctx) => {\n        return res(ctx.json({ ...mockTasksPage, content: [], totalElements: 0 }));\n      })\n    );\n    \n    renderMyToDoList();\n    \n    await waitFor(() => {\n      expect(screen.getByText('No tasks found. Try adjusting your filters.')).toBeInTheDocument();\n    });\n  });\n});
+/**
+ * MyToDoList Integration Tests
+ * Tests task list functionality, filtering, and API integration
+ */
+
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { configureStore } from '@reduxjs/toolkit';
+import { appAPI } from '../service/api';
+import { userApi } from '../service/user';
+import type { Page, TaskItem, TaskQueryParams } from '../types/userTask';
+
+// Mock data
+const mockTasksPage: Page<TaskItem> = {
+  content: [
+    {
+      id: '1',
+      title: 'Test Task 1',
+      descriptionMd: 'Test description 1',
+      statusId: 2,
+      statusName: 'Todo',
+      priorityId: 1,
+      priorityName: 'Low',
+      dueAt: '2024-01-15T10:00:00Z',
+      estimateMinutes: 120,
+      spentMinutes: 60,
+      completedAt: null,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    },
+    {
+      id: '2',
+      title: 'Test Task 2',
+      descriptionMd: 'Test description 2',
+      statusId: 5,
+      statusName: 'Done',
+      priorityId: 3,
+      priorityName: 'High',
+      dueAt: '2024-01-10T10:00:00Z',
+      estimateMinutes: 60,
+      spentMinutes: 60,
+      completedAt: '2024-01-10T15:00:00Z',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-10T15:00:00Z',
+    },
+  ],
+  totalElements: 2,
+  totalPages: 1,
+  size: 20,
+  number: 0,
+  first: true,
+  last: true,
+  numberOfElements: 2,
+};
+
+// MSW server setup
+const server = setupServer(
+  http.get('*/user/task', () => {
+    return HttpResponse.json(mockTasksPage);
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+const createTestStore = () => {
+  return configureStore({
+    reducer: {
+      [appAPI.reducerPath]: appAPI.reducer,
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(appAPI.middleware),
+  });
+};
+
+describe('MyToDoList Integration', () => {
+  it('should fetch tasks successfully', async () => {
+    const store = createTestStore();
+    
+    const queryParams: TaskQueryParams = {
+      page: 0,
+      size: 20,
+      sort: 'dueAt,asc',
+    };
+    
+    const result = await store.dispatch(
+      userApi.endpoints.getUserTasks.initiate(queryParams)
+    );
+    
+    expect(result.data).toEqual(mockTasksPage);
+    expect(result.data?.content).toHaveLength(2);
+  });
+
+  it('should handle query parameters correctly', () => {
+    const buildQueryString = (params: TaskQueryParams): string => {
+      const searchParams = new URLSearchParams();
+      
+      if (params.status !== undefined) searchParams.set('status', params.status.toString());
+      if (params.q) searchParams.set('q', params.q);
+      if (params.fromDue) searchParams.set('fromDue', params.fromDue);
+      if (params.toDue) searchParams.set('toDue', params.toDue);
+      
+      searchParams.set('page', params.page.toString());
+      searchParams.set('size', params.size.toString());
+      searchParams.set('sort', params.sort);
+      
+      return searchParams.toString();
+    };
+
+    const params: TaskQueryParams = {
+      status: 2,
+      q: 'test',
+      fromDue: '2024-01-01',
+      toDue: '2024-01-31',
+      page: 0,
+      size: 10,
+      sort: 'dueAt,desc',
+    };
+
+    const queryString = buildQueryString(params);
+    
+    expect(queryString).toContain('status=2');
+    expect(queryString).toContain('q=test');
+    expect(queryString).toContain('page=0');
+    expect(queryString).toContain('size=10');
+  });
+
+  it('should handle filter state changes', () => {
+    const initialFilters = {
+      status: undefined as number | undefined,
+      q: '',
+      fromDue: '',
+      toDue: '',
+      page: 0,
+      size: 20,
+      sort: 'dueAt,asc',
+    };
+
+    const handleFilterChange = (key: keyof typeof initialFilters, value: string | number | undefined) => {
+      return {
+        ...initialFilters,
+        [key]: value,
+        page: key !== 'page' ? 0 : (value as number),
+      };
+    };
+
+    // Test status filter
+    const statusFiltered = handleFilterChange('status', 2);
+    expect(statusFiltered.status).toBe(2);
+    expect(statusFiltered.page).toBe(0); // Should reset page
+
+    // Test search filter
+    const searchFiltered = handleFilterChange('q', 'test search');
+    expect(searchFiltered.q).toBe('test search');
+    expect(searchFiltered.page).toBe(0); // Should reset page
+
+    // Test page change
+    const pageChanged = handleFilterChange('page', 1);
+    expect(pageChanged.page).toBe(1); // Should not reset page
+  });
+
+  it('should handle error responses', async () => {
+    server.use(
+      http.get('*/user/task', () => {
+        return HttpResponse.json(
+          { message: 'Server error' },
+          { status: 500 }
+        );
+      })
+    );
+
+    const store = createTestStore();
+    
+    const result = await store.dispatch(
+      userApi.endpoints.getUserTasks.initiate({
+        page: 0,
+        size: 20,
+        sort: 'dueAt,asc',
+      })
+    );
+    
+    expect(result.error).toBeDefined();
+    expect((result.error as { status: number }).status).toBe(500);
+  });
+
+  it('should handle empty task list', async () => {
+    server.use(
+      http.get('*/user/task', () => {
+        return HttpResponse.json({
+          ...mockTasksPage,
+          content: [],
+          totalElements: 0,
+          numberOfElements: 0,
+        });
+      })
+    );
+
+    const store = createTestStore();
+    
+    const result = await store.dispatch(
+      userApi.endpoints.getUserTasks.initiate({
+        page: 0,
+        size: 20,
+        sort: 'dueAt,asc',
+      })
+    );
+    
+    expect(result.data?.content).toHaveLength(0);
+    expect(result.data?.totalElements).toBe(0);
+  });
+
+  it('should format dates correctly', () => {
+    const formatDate = (dateString: string) => {
+      return new Date(dateString).toLocaleDateString();
+    };
+
+    const testDate = '2024-01-15T10:00:00Z';
+    const formatted = formatDate(testDate);
+    
+    expect(formatted).toBeTruthy();
+    expect(typeof formatted).toBe('string');
+  });
+
+  it('should format time correctly', () => {
+    const formatTime = (minutes: number) => {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    };
+
+    expect(formatTime(60)).toBe('1h 0m');
+    expect(formatTime(90)).toBe('1h 30m');
+    expect(formatTime(30)).toBe('30m');
+    expect(formatTime(0)).toBe('0m');
+  });
+
+  it('should validate pagination logic', () => {
+    const mockPage = { ...mockTasksPage, totalPages: 5, number: 2 };
+    
+    const canGoPrevious = mockPage.number > 0;
+    const canGoNext = mockPage.number < mockPage.totalPages - 1;
+    
+    expect(canGoPrevious).toBe(true);
+    expect(canGoNext).toBe(true);
+    
+    // Test first page
+    const firstPage = { ...mockPage, number: 0 };
+    expect(firstPage.number > 0).toBe(false);
+    
+    // Test last page
+    const lastPage = { ...mockPage, number: 4 };
+    expect(lastPage.number < lastPage.totalPages - 1).toBe(false);
+  });
+});

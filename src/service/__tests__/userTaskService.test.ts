@@ -2,9 +2,10 @@
  * User task service tests
  */
 
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { configureStore } from '@reduxjs/toolkit';
+import { appAPI } from '../api';
 import { userApi } from '../user';
 import { ENDPOINTS } from '../../constants/endpoints';
 import type { TaskItem, EditTaskRequest } from '../../types/userTask';
@@ -18,10 +19,10 @@ afterAll(() => server.close());
 const createTestStore = () => {
   return configureStore({
     reducer: {
-      api: userApi.reducer,
+      [appAPI.reducerPath]: appAPI.reducer,
     },
     middleware: (getDefaultMiddleware) =>
-      getDefaultMiddleware().concat(userApi.middleware),
+      getDefaultMiddleware().concat(appAPI.middleware),
   });
 };
 
@@ -44,8 +45,8 @@ const mockTask: TaskItem = {
 describe('editUserTask', () => {
   it('should edit task successfully', async () => {
     server.use(
-      rest.put(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_EDIT}/123`, (req, res, ctx) => {
-        return res(ctx.json(mockTask));
+      http.put(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_EDIT}/123`, () => {
+        return HttpResponse.json(mockTask);
       })
     );
 
@@ -67,8 +68,8 @@ describe('editUserTask', () => {
 
   it('should handle 404 error', async () => {
     server.use(
-      rest.put(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_EDIT}/123`, (req, res, ctx) => {
-        return res(ctx.status(404), ctx.json({ message: 'Task not found' }));
+      http.put(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_EDIT}/123`, () => {
+        return HttpResponse.json({ message: 'Task not found' }, { status: 404 });
       })
     );
 
@@ -86,18 +87,18 @@ describe('editUserTask', () => {
     );
 
     expect(result.error).toBeDefined();
-    expect((result.error as any).status).toBe(404);
+    expect((result.error as { status: number }).status).toBe(404);
   });
 
   it('should handle validation errors', async () => {
     server.use(
-      rest.put(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_EDIT}/123`, (req, res, ctx) => {
-        return res(
-          ctx.status(422),
-          ctx.json({
+      http.put(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_EDIT}/123`, () => {
+        return HttpResponse.json(
+          {
             message: 'Validation failed',
             errors: { title: 'Title is required' }
-          })
+          },
+          { status: 422 }
         );
       })
     );
@@ -116,15 +117,15 @@ describe('editUserTask', () => {
     );
 
     expect(result.error).toBeDefined();
-    expect((result.error as any).status).toBe(422);
+    expect((result.error as { status: number }).status).toBe(422);
   });
 });
 
 describe('deleteUserTask', () => {
   it('should delete task successfully', async () => {
     server.use(
-      rest.delete(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_DELETE}/123`, (req, res, ctx) => {
-        return res(ctx.status(204));
+      http.delete(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_DELETE}/123`, () => {
+        return new HttpResponse(null, { status: 204 });
       })
     );
 
@@ -139,8 +140,8 @@ describe('deleteUserTask', () => {
 
   it('should handle 404 error on delete', async () => {
     server.use(
-      rest.delete(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_DELETE}/123`, (req, res, ctx) => {
-        return res(ctx.status(404), ctx.json({ message: 'Task not found' }));
+      http.delete(`${ENDPOINTS.BASE_URL}${ENDPOINTS.USER.TASK_DELETE}/123`, () => {
+        return HttpResponse.json({ message: 'Task not found' }, { status: 404 });
       })
     );
 
@@ -150,6 +151,6 @@ describe('deleteUserTask', () => {
     );
 
     expect(result.error).toBeDefined();
-    expect((result.error as any).status).toBe(404);
+    expect((result.error as { status: number }).status).toBe(404);
   });
 });
